@@ -158,38 +158,6 @@ docker-compose down
 docker-compose pull
 docker-compose up -d
 ```
-
-<details>
-<summary>📝 点击查看「通过 watchtower 实现自动更新」(点击展开)</summary>
-# 将下列配置「覆盖」到 docker-compose.yml 中，
-# 你可以通过 nano docker-compose.yml 命令进行编辑
-
-```bash
-version: '3.8'
-
-services:
-  TG-Antiharassment-Bot:
-    container_name: TG-Antiharassment-Bot
-    image: weijiaqaq/tg-antiharassment-bot:latest
-    restart: unless-stopped
-    env_file:
-     - .env
-    volumes:
-     - ./data:/app/data
-  
-  # watchtower 配置
-  watchtower:
-    image: containrrr/watchtower
-    container_name: watchtower
-    restart: unless-stopped
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    command: --cleanup --interval 3600 TG-Antiharassment-Bot 
-    # TG-Antiharassment-Bot 为容器名，如果是自定义的，记得修改。
-    # 3600 单位（秒）
-```
-</details>
-
 ---
 ### 使用 Docker Run
 
@@ -214,7 +182,7 @@ docker run -d \
 ## 🛠️ (可选) 手动部署
 
 <details>
-<summary>👨‍💻 点击查看「手动部署指南」 (点击展开)</summary>
+<summary>👨‍💻 点击查看手动部署指南 (点击展开)</summary>
 
 如果您不想使用 Docker，也可以通过以下步骤手动部署。
 
