@@ -7,6 +7,157 @@ import re
 from PIL import Image
 import io
 
+# 本地验证问题库 - 包含标准问题和反向排除问题
+LOCAL_VERIFICATION_QUESTIONS = [
+    # 标准直接提问
+    {
+        "question": "中国的首都是哪里？",
+        "correct_answer": "北京",
+        "incorrect_answers": ["上海", "广州", "深圳"]
+    },
+    {
+        "question": "一年有多少个月？",
+        "correct_answer": "12",
+        "incorrect_answers": ["10", "11", "13"]
+    },
+    {
+        "question": "一周有多少天？",
+        "correct_answer": "7",
+        "incorrect_answers": ["5", "6", "8"]
+    },
+    {
+        "question": "太阳从哪个方向升起？",
+        "correct_answer": "东方",
+        "incorrect_answers": ["西方", "南方", "北方"]
+    },
+    {
+        "question": "水的化学式是什么？",
+        "correct_answer": "H2O",
+        "incorrect_answers": ["CO2", "O2", "NaCl"]
+    },
+    {
+        "question": "地球上最大的海洋是哪个？",
+        "correct_answer": "太平洋",
+        "incorrect_answers": ["大西洋", "印度洋", "北冰洋"]
+    },
+    {
+        "question": "哪个颜色是彩虹的第一种颜色？",
+        "correct_answer": "红色",
+        "incorrect_answers": ["橙色", "黄色", "绿色"]
+    },
+    {
+        "question": "人体有多少个心脏？",
+        "correct_answer": "1",
+        "incorrect_answers": ["2", "3", "4"]
+    },
+    {
+        "question": "哪个季节最热？",
+        "correct_answer": "夏天",
+        "incorrect_answers": ["春天", "秋天", "冬天"]
+    },
+    {
+        "question": "哪个是最大的行星？",
+        "correct_answer": "木星",
+        "incorrect_answers": ["土星", "天王星", "海王星"]
+    },
+    {
+        "question": "中国的国旗上有几颗星？",
+        "correct_answer": "5",
+        "incorrect_answers": ["3", "4", "6"]
+    },
+    {
+        "question": "哪个是哺乳动物？",
+        "correct_answer": "狗",
+        "incorrect_answers": ["鱼", "鸟", "蛇"]
+    },
+    {
+        "question": "哪个是水果？",
+        "correct_answer": "苹果",
+        "incorrect_answers": ["胡萝卜", "土豆", "洋葱"]
+    },
+    {
+        "question": "哪个是交通工具？",
+        "correct_answer": "汽车",
+        "incorrect_answers": ["桌子", "椅子", "床"]
+    },
+    {
+        "question": "哪个是颜色？",
+        "correct_answer": "蓝色",
+        "incorrect_answers": ["数字", "字母", "符号"]
+    },
+    # 反向排除提问
+    {
+        "question": "以下哪个不属于行星？",
+        "correct_answer": "月亮",
+        "incorrect_answers": ["地球", "火星", "金星"]
+    },
+    {
+        "question": "以下哪个不属于水果？",
+        "correct_answer": "胡萝卜",
+        "incorrect_answers": ["苹果", "香蕉", "橙子"]
+    },
+    {
+        "question": "以下哪个不属于交通工具？",
+        "correct_answer": "房子",
+        "incorrect_answers": ["汽车", "飞机", "火车"]
+    },
+    {
+        "question": "以下哪个不属于颜色？",
+        "correct_answer": "数字",
+        "incorrect_answers": ["红色", "蓝色", "绿色"]
+    },
+    {
+        "question": "以下哪个不属于哺乳动物？",
+        "correct_answer": "鱼",
+        "incorrect_answers": ["猫", "狗", "牛"]
+    },
+    {
+        "question": "以下哪个不属于蔬菜？",
+        "correct_answer": "苹果",
+        "incorrect_answers": ["白菜", "萝卜", "黄瓜"]
+    },
+    {
+        "question": "以下哪个不属于鸟类？",
+        "correct_answer": "狗",
+        "incorrect_answers": ["麻雀", "鸽子", "燕子"]
+    },
+    {
+        "question": "以下哪个不属于金属？",
+        "correct_answer": "木头",
+        "incorrect_answers": ["铁", "铜", "铝"]
+    },
+    {
+        "question": "以下哪个不属于饮料？",
+        "correct_answer": "米饭",
+        "incorrect_answers": ["水", "茶", "咖啡"]
+    },
+    {
+        "question": "以下哪个不属于学习用品？",
+        "correct_answer": "电视",
+        "incorrect_answers": ["笔", "本子", "橡皮"]
+    },
+    {
+        "question": "以下哪个不属于运动项目？",
+        "correct_answer": "睡觉",
+        "incorrect_answers": ["跑步", "游泳", "篮球"]
+    },
+    {
+        "question": "以下哪个不属于季节？",
+        "correct_answer": "星期",
+        "incorrect_answers": ["春天", "夏天", "秋天"]
+    },
+    {
+        "question": "以下哪个不属于方向？",
+        "correct_answer": "上下",
+        "incorrect_answers": ["东", "南", "西"]
+    },
+    {
+        "question": "以下哪个不属于数字？",
+        "correct_answer": "字母",
+        "incorrect_answers": ["1", "2", "3"]
+    }
+]
+
 class GeminiService:
     def __init__(self):
         if config.GEMINI_API_KEY:
@@ -80,48 +231,106 @@ class GeminiService:
                     print("Could not retrieve response.text.")
             return {"is_spam": False, "reason": "Analysis failed"}
     
-    async def generate_unblock_question(self) -> dict:
-        if not self.verification_model:
-            return {
-                "question": "中国的首都是哪里？",
-                "answer": "北京"
-            }
+    def _get_local_question(self) -> dict:
+        """从本地问题库随机选择一个问题"""
+        question_data = random.choice(LOCAL_VERIFICATION_QUESTIONS)
+        correct_answer = question_data['correct_answer']
+        options = question_data['incorrect_answers'] + [correct_answer]
+        random.shuffle(options)
         
+        return {
+            "question": question_data['question'],
+            "correct_answer": correct_answer,
+            "options": options
+        }
+
+    async def generate_unblock_question(self) -> dict:
+        """生成解封验证问题，使用与人机验证相同的提示词"""
+        if not self.verification_model:
+            return self._get_local_question()
+
         prompt = """
-        生成一个简单的常识问题用于解封验证。
-        请以JSON格式回复: {{"question": "问题", "answer": "答案"}}
+        # 角色
+        你是一个人机验证（CAPTCHA）问题生成器。
+        # 任务
+        生成一个随机的、适合成年人的中文常识性问题，用于区分人类和机器人。问题的格式应该是多样的。
+        # 要求
+        1.  **问题格式多样性**: 你需要随机选择以下两种问题格式之一进行提问：
+            *   **a) 标准直接提问**: 例如，"中国的首都是哪里？"
+            *   **b) 反向排除提问**: 使用"以下哪个不属于...？"或类似的句式。例如，"以下哪个不属于行星？"
+        2.  **主题**: 问题主题应为完全随机的日常通用常识，无需限定在特定领域。
+        3.  **难度**: 问题和选项的难度应设定为"绝大多数18岁以上母语为中文的成年人都能立即回答正确"的水平，避免专业或冷门知识。
+        4.  **明确性**: 问题必须只有一个明确无误的正确答案。
+        5.  **答案逻辑**:
+            *   提供一个`correct_answer`（正确答案）。
+            *   提供一个包含三个字符串的列表`incorrect_answers`（干扰项）。
+            *   **对于标准问题**，所有选项应属于同一类别。
+            *   **对于反向排除问题**，三个`incorrect_answers`应属于同一类别，而`correct_answer`则是那个不属于该类别的 outlier（局外者）。
+        6.  **语言**: 所有内容必须为简体中文。
+        7.  **输出格式**: 严格按照以下JSON格式返回，不要包含任何额外的解释或文字。
+        # JSON格式示例
+        {
+          "question": "问题文本",
+          "correct_answer": "正确答案",
+          "incorrect_answers": ["干扰项1", "干扰项2", "干扰项3"]
+        }
         """
         try:
             response = await self.verification_model.generate_content_async(prompt)
-            return json.loads(response.text)
-        except Exception as e:
-            print(f"生成问题失败: {e}")
+            
+            if not response.text:
+                raise ValueError("Gemini API返回空响应")
+            
+            clean_text = re.sub(r'```json\s*|\s*```', '', response.text).strip()
+            data = json.loads(clean_text)
+            
+            correct_answer = data['correct_answer']
+            options = data['incorrect_answers'] + [correct_answer]
+            random.shuffle(options)
+            
             return {
-                "question": "中国的首都是哪里？",
-                "answer": "北京"
+                "question": data['question'],
+                "correct_answer": correct_answer,
+                "options": options
             }
+        except Exception as e:
+            print(f"生成解封验证问题失败: {e}")
+            
+            if 'response' in locals() and hasattr(response, 'text'):
+                print(f"Gemini原始响应: {response.text}")
+            
+            # 从本地问题库随机选择
+            return self._get_local_question()
 
     async def generate_verification_challenge(self) -> dict:
+        """生成人机验证问题"""
         if not self.verification_model:
-            return {
-                "question": "1 + 1 = ?",
-                "correct_answer": "2",
-                "options": ["1", "2", "3", "4"]
-            }
+            return self._get_local_question()
 
         prompt = """
-        请生成一个用于人机验证的常识性问题。
-        要求：
-        1. 问题应该简单，大部分人都能回答。
-        2. 提供一个正确答案和三个看起来合理但错误的干扰项。
-        3. 所有内容必须为简体中文。
-        4. 以JSON格式返回，包含以下键： "question", "correct_answer", "incorrect_answers" (一个包含三个字符串的列表)。
-        
-        示例:
+        # 角色
+        你是一个人机验证（CAPTCHA）问题生成器。
+        # 任务
+        生成一个随机的、适合成年人的中文常识性问题，用于区分人类和机器人。问题的格式应该是多样的。
+        # 要求
+        1.  **问题格式多样性**: 你需要随机选择以下两种问题格式之一进行提问：
+            *   **a) 标准直接提问**: 例如，"中国的首都是哪里？"
+            *   **b) 反向排除提问**: 使用"以下哪个不属于...？"或类似的句式。例如，"以下哪个不属于行星？"
+        2.  **主题**: 问题主题应为完全随机的日常通用常识，无需限定在特定领域。
+        3.  **难度**: 问题和选项的难度应设定为"绝大多数18岁以上母语为中文的成年人都能立即回答正确"的水平，避免专业或冷门知识。
+        4.  **明确性**: 问题必须只有一个明确无误的正确答案。
+        5.  **答案逻辑**:
+            *   提供一个`correct_answer`（正确答案）。
+            *   提供一个包含三个字符串的列表`incorrect_answers`（干扰项）。
+            *   **对于标准问题**，所有选项应属于同一类别。
+            *   **对于反向排除问题**，三个`incorrect_answers`应属于同一类别，而`correct_answer`则是那个不属于该类别的 outlier（局外者）。
+        6.  **语言**: 所有内容必须为简体中文。
+        7.  **输出格式**: 严格按照以下JSON格式返回，不要包含任何额外的解释或文字。
+        # JSON格式示例
         {
-          "question": "太阳从哪个方向升起？",
-          "correct_answer": "东方",
-          "incorrect_answers": ["西方", "南方", "北方"]
+          "question": "问题文本",
+          "correct_answer": "正确答案",
+          "incorrect_answers": ["干扰项1", "干扰项2", "干扰项3"]
         }
         """
         try:
@@ -150,10 +359,7 @@ class GeminiService:
             if 'response' in locals() and hasattr(response, 'text'):
                 print(f"Gemini原始响应: {response.text}")
             
-            return {
-                "question": "1 + 1 = ?",
-                "correct_answer": "2",
-                "options": ["1", "2", "3", "4"]
-            }
+            # 从本地问题库随机选择
+            return self._get_local_question()
 
 gemini_service = GeminiService()

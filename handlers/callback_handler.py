@@ -110,11 +110,28 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await query.message.reply_text("现在您可以发送消息了！")
     
     elif data.startswith("unblock_"):
-        from services.blacklist import verify_unblock_answer
+        from services.blacklist import verify_unblock_answer, get_pending_unblock_message
         answer = data.split("_", 1)[1]
         message, success = await verify_unblock_answer(user_id, answer)
         
-        await query.edit_message_text(text=message, reply_markup=None)
+        if success:
+            # 解封成功，移除键盘
+            await query.edit_message_text(text=message, reply_markup=None)
+        else:
+            # 答案错误或超时，检查是否还有机会
+            unblock_data = get_pending_unblock_message(user_id)
+            if unblock_data:
+                # 还有机会，保留键盘并显示错误消息
+                question, keyboard = unblock_data
+                error_message = (
+                    f"{message}\n\n"
+                    f"您已被暂时封禁。\n\n"
+                    f"如果您认为这是误操作，请回答以下问题以自动解封：\n\n{question}"
+                )
+                await query.edit_message_text(text=error_message, reply_markup=keyboard, parse_mode='Markdown')
+            else:
+                # 没有机会了或已超时，移除键盘
+                await query.edit_message_text(text=message, reply_markup=None)
         
     elif data.startswith("admin_unblock_"):
         from services import blacklist
